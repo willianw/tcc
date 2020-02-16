@@ -1,0 +1,17 @@
+# Latex Generated Files
+*.aux
+*.bbl
+*.blg
+*.brf
+*.fdb_latexmk
+*.fls
+*.idx
+*.ilg
+*.ind
+*.loa
+*.lof
+*.log
+*.loq
+*.lot
+*.synctex.gz
+*.toc
