@@ -1,3 +1,13 @@
+# Database
+download_images_server/downloaded_images
+
+# Node Modules
+download_images_server/node_modules
+
+# Postcode
+postcodes
+log.txt
+
 # Latex Generated Files
 *.aux
 *.bbl
