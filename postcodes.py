@@ -27,8 +27,9 @@ def process(iterrow):
     direction, row = iterrow
     
     name = f"{row['pcd']}-{row['lsoa11']}".replace(' ', '_')
-    filename = f"download_images_server/downloaded_images/{name}-{direction}.png"
-    if os.path.exists(filename):
+    filename_jpeg = f"download_images_server/downloaded_images/{name}-{direction}.jpeg"
+    filename_png  = f"download_images_server/downloaded_images/{name}-{direction}.png"
+    if os.path.exists(filename_jpeg):
         return True
     
     if True:
@@ -61,8 +62,11 @@ def process(iterrow):
             stream=True)
         
         if image.status_code == 200:
-            with open(filename, 'wb') as f:
+            with open(filename_png, 'wb') as f:
                 f.write(image.content)
+            subprocess.run(['convert', filename_png, filename_jpeg])
+            subprocess.run(['rm', filename_png])
+            
             return True
         else:
             return False
@@ -77,7 +81,7 @@ def df_gen():
         for direction in ['0', '90', '180', '270']:
             yield (direction, row)
 
-with ThreadPool(5) as p:
+with ThreadPool(3) as p:
         with tqdm.tqdm(total=4*df.shape[0]) as pbar:
             for i, _ in enumerate(p.imap_unordered(process, df_gen())):
                 pbar.update()
