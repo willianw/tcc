@@ -1,8 +1,5 @@
 # Database
-download_images_server/downloaded_images
-
-# Node Modules
-download_images_server/node_modules
+download_images_server
 
 # Postcode
 postcodes

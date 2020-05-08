@@ -1,80 +1,76 @@
 from multiprocessing.pool import ThreadPool
+from PIL import Image
 
 import pandas as pd
+import numpy as np
 import subprocess
 import requests
+import random
 import glob
 import json
 import tqdm
 import time
 import pdb
 import os
+import io
 
-
-postcodes_wy = pd.read_csv('postcodes/postcodes_wy.tsv', sep='\t', index_col=0)['area']
-
-df = pd.DataFrame()
-for borough_csv in glob.glob('postcodes/ONSPD_NOV_2019_UK_*.csv'):
-    borough = pd.read_csv(borough_csv)
-    borough['postcode_area'] = borough['pcds'].apply(lambda x: x.split(' ')[0])
-    borough = borough[borough['postcode_area'].isin(postcodes_wy)]
-    df = df.append(borough)
 
 STREET_API_URL = "https://maps.googleapis.com/maps/api/streetview"
-BASE_URL = 'https://maps.google.com'
 
 def process(iterrow):
     direction, row = iterrow
     
     name = f"{row['pcd']}-{row['lsoa11']}".replace(' ', '_')
-    filename = f"download_images_server/new_downloaded_images/{name}-{direction}.jpeg"
+    filename = f"download_images_server/360_downloaded_images/{name}-{direction}.jpeg"
     if os.path.exists(filename):
         return True
     
     try:
         params = {
             'location': f"{row['lat']}, {row['long']}",
-            'heading': direction,
             'key': os.environ['STREET_VIEW_STATIC_API_KEY']
         }
         response = json.loads(requests.get(f"{STREET_API_URL}/metadata", params=params).text)
         
         if response['status'] != 'OK':
-            # print(f"Google Status not OK {response} {params['location']}")
             return False
         
-        # lat = round(response['location']['lat'], 6)
-        # lng = round(response['location']['lng'], 6)
-        lat = row['lat']
-        lng = row['long']
+        main_url = f'https://geo{random.randint(0, 3)}.ggpht.com/cbk'
         
-        main_url = f'{BASE_URL}/cbk'
-        image = requests.get(main_url, stream=True, params={
-            'output': 'thumbnail',
-            'w': 640,
-            'h': 640,
-            'panoid': response['pano_id']
-        })
+        images = [None, None]
+        for y in [0, 1]:
+            image = requests.get(main_url, timeout=15, params={
+                'cb_client': 'maps_sv.tactile',
+                'authuser': 0,
+                'hl': 'en',
+                'gl': 'br',
+                'x': direction // 90,
+                'y': y,
+                'zoom': 2,
+                'nbt': None,
+                'fover': 0,
+                'output': 'tile',
+                'panoid': response['pano_id']
+            })
         
-        if image.status_code == 200:
-            with open(filename, 'wb') as f:
-                f.write(image.content)
-            return True
-        else:
-            return False
-        return False
-        
+            if image.status_code == 200:
+                images[y] = np.array(Image.open(io.BytesIO(image.content)))
+            else:
+                return False
+        Image.fromarray(np.concatenate(tuple(images))[256:256+512, :, :]).save(filename)
+        return True  
     except Exception:
         return False
 
 # Asynchronous
 def df_gen():
-    for _, row in df.iterrows():
-        for direction in ['0']:
-            yield (direction, row)
+    for chunk in pd.read_csv('postcodes/ONSPD_NOV_2019_UK_London.csv', chunksize=1e6):
+        for _, row in chunk.iterrows():
+            for dir in [0, 90, 180, 270]:
+                yield (dir, row)
 
 with ThreadPool(30) as p:
-        with tqdm.tqdm(total=1*df.shape[0]) as pbar:
+        with tqdm.tqdm(total=8*321375) as pbar:
             for i, _ in enumerate(p.imap_unordered(process, df_gen())):
                 pbar.update()
 
